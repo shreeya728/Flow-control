@@ -1,3 +1,5 @@
+% This code is for finding the decay in velocity as we move away from the gust fans.
+
 % File path and sheet name
 file_path = '/Users/shreeyapadte/Desktop/SEM7/BTP AS4600+/pitot_tube/decay_pitot.xlsx';
 sheet_names = {'3000_50cm', '3000_50cm_2', '3000_75cm', '3000_75cm_2', '3000_100cm', '3000_100cm_2'};
