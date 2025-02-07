@@ -1,2 +1,2 @@
 # Flow-control
-A repository to manage the codes on experiments done on active flow control. 
+A repository to manage the codes on experiments done on gust characterization and active flow control. 
