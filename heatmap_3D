@@ -1,0 +1,150 @@
+clc;
+clear all;
+close all;
+
+% Define distances (converted to cm)
+dist = [17.5, 14, 10.5, 7, 3.5] * 2.54;  
+
+% Measurement planes (Z direction)
+Z_planes = [50, 75, 100]; 
+
+% Initialize storage for mean velocities across distances
+num_x = 5; % Positions across transverse section
+num_y = length(dist);
+num_z = length(Z_planes);
+all_mean_velocity_matrix = zeros(num_y, num_x, num_z);
+
+% Iterate over the 3 locations (50cm, 75cm, 100cm)
+for s = 1:3
+    if s == 1
+        file_path = {
+            '/Users/shreeyapadte/Downloads/50cm_transverse_leftest.xlsx',
+            '/Users/shreeyapadte/Downloads/50cm_transverse_left.xlsx',
+            '/Users/shreeyapadte/Downloads/50cm_transverse_mid.xlsx',
+            '/Users/shreeyapadte/Downloads/50cm_transverse_right.xlsx',
+            '/Users/shreeyapadte/Downloads/50cm_transverse_rightest.xlsx'
+        };
+        dist = [17.5, 14, 10.5, 7, 3.5] * 2.54; 
+    elseif s == 2
+        file_path = {
+            '/Users/shreeyapadte/Downloads/75cmleftest.xlsx',
+            '/Users/shreeyapadte/Downloads/75cmleft.xlsx',
+            '/Users/shreeyapadte/Downloads/75cmmid.xlsx',
+            '/Users/shreeyapadte/Downloads/75cmright.xlsx',
+            '/Users/shreeyapadte/Downloads/75cmrightest.xlsx'
+        };
+        dist = [17.5, 14, 10.5, 7, 3.5] * 2.54; 
+    elseif s == 3
+        file_path = {
+            '/Users/shreeyapadte/Downloads/100cm_leftest.xlsx',
+            '/Users/shreeyapadte/Downloads/100cm_left.xlsx',
+            '/Users/shreeyapadte/Downloads/100cm_transverse.xlsx',
+            '/Users/shreeyapadte/Downloads/100cm_right.xlsx',
+            '/Users/shreeyapadte/Downloads/100cm_rightest.xlsx'
+        };
+        dist = [3.5, 7, 10.5, 14, 17.5] * 2.54; 
+    end
+    
+    num_sheets = 15;  
+    sheet_names = cell(1, num_sheets);
+    for i = 1:num_sheets
+        sheet_names{i} = sprintf('Sheet%d', i);
+    end
+
+    % Matrix to store mean velocities for this plane
+    mean_velocity_matrix = zeros(num_y, num_x);
+
+    % Read and process data
+    for j = 1:length(file_path)
+        mean_values = zeros(1, length(sheet_names));
+
+        for i = 1:length(sheet_names)
+            data = readmatrix(file_path{j}, 'Sheet', sheet_names{i});
+            if size(data, 1) < 101
+                warning('Sheet %s in file %s has less than 101 rows. Skipping.', sheet_names{i}, file_path{j});
+                continue; 
+            end
+
+            vel = data(101:end, 3);
+            vel = vel(vel ~= 0);
+            mean_values(i) = mean(vel, 'omitnan');
+        end
+
+        % Compute averaged mean velocities
+        mean_velocity_matrix(:, j) = [
+            mean(mean_values(1:3));
+            mean(mean_values(4:6));
+            mean(mean_values(7:9));
+            mean(mean_values(10:12));
+            mean(mean_values(13:15))
+        ];
+    end
+
+    % Store velocity data for this Z-plane (50cm, 75cm, 100cm)
+    all_mean_velocity_matrix(:, :, s) = mean_velocity_matrix;
+end
+
+% **📌 3D Interpolation and Volumetric Visualization**
+% Convert data into scattered lists for interpolation
+[X_list, Y_list, Z_list] = meshgrid(1:num_x, 1:num_y, Z_planes);
+X_list = X_list(:);
+Y_list = Y_list(:);
+Z_list = Z_list(:);
+V_list = all_mean_velocity_matrix(:);
+
+% Generate a fine 100x100x100 grid using NDGRID
+[xq, yq, zq] = ndgrid(...
+    linspace(min(X_list), max(X_list), 100), ...
+    linspace(min(Y_list), max(Y_list), 100), ...
+    linspace(min(Z_list), max(Z_list), 100));
+
+% Create interpolant
+F = scatteredInterpolant(X_list, Y_list, Z_list, V_list, 'natural');
+
+% Evaluate the velocity at the new grid points
+Vq = F(xq, yq, zq);
+
+% Convert to MESHGRID format for `isosurface` and `slice`
+[Xm, Ym, Zm] = meshgrid(...
+    linspace(min(X_list), max(X_list), 100), ...
+    linspace(min(Y_list), max(Y_list), 100), ...
+    linspace(min(Z_list), max(Z_list), 100));
+
+% Use interpn to match the correct format
+Vq_mesh = interpn(xq, yq, zq, Vq, Xm, Ym, Zm);
+
+% **📊 3D Volumetric Heatmap of Mean Velocity**
+figure;
+
+% Create isosurface
+isosurface(Xm, Ym, Zm, Vq_mesh, mean(Vq_mesh(:))); 
+
+hold on;
+
+% Create slice plots for visualization
+slice(Xm, Ym, Zm, Vq_mesh, ...
+    [min(X_list), max(X_list)], ...
+    [min(Y_list), max(Y_list)], ...
+    [min(Z_list), max(Z_list)]);
+
+% Adjust appearance
+shading interp;
+colormap(jet);
+colorbar;
+xlabel('Position Across Transverse Section');
+ylabel('Distance from Fan (cm)');
+zlabel('Measurement Plane (cm)');
+title('3D Volumetric Heatmap of Mean Velocity');
+set(gca, 'FontSize', 14);
+%grid on;
+view(3);
+axis tight;
+alpha(0.5); % Adjust transparency
+camlight;
+lighting gouraud;
+
+% Custom X-axis tick labels
+xticks(1:length(file_path)); % Set tick positions
+xticklabels({'leftest', 'left', 'mid', 'right', 'rightest'}); % Set tick labels
+yticks(1:length(dist));
+yticklabels(string(dist));
